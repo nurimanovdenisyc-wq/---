@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Песочница 3D</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; font-family:'Segoe UI',sans-serif; background:#000; color:#fff; user-select:none; touch-action:none; }
+  #game { position:relative; width:100vw; height:100vh; overflow:hidden; }
+  canvas { display:block; }
+  
+  @media (orientation: portrait) {
+    #game::before { content:'Поверни телефон горизонтально!'; position:absolute; inset:0; background:rgba(0,0,0,0.9); color:#fff; display:flex; align-items:center; justify-content:center; z-index:999; font-size:20px; text-align:center; padding:20px; }
+  }
+
+  #hud { position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; gap:8px; z-index:20; pointer-events:none; }
+  .stat { background:rgba(0,0,0,.65); backdrop-filter:blur(8px); padding:6px 10px; border-radius:8px; font-size:12px; border:1px solid rgba(255,255,255,.2); display:flex; align-items:center; gap:6px; }
+  .stat b { color:#ffd93d; }
+  #stats-left,#stats-right { display:flex; flex-direction:column; gap:4px; }
+  #stats-right { align-items:flex-end; }
+
+  #joystick { position:absolute; bottom:20px; left:20px; width:110px; height:110px; border-radius:50%; background:rgba(255,255,255,.1); border:2px solid rgba(255,255,255,.3); backdrop-filter:blur(6px); z-index:20; touch-action:none; }
+  #stick { position:absolute; top:50%; left:50%; width:50px; height:50px; margin:-25px 0 0 -25px; border-radius:50%; background:rgba(255,255,255,.5); border:2px solid #fff; pointer-events:none; transition:transform .05s; }
+  #actions { position:absolute; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:20; }
+  
+  .btn-act { background:linear-gradient(135deg,#ff6b6b,#c0392b); border:2px solid #fff; border-radius:50%; width:56px; height:56px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; transition:transform .1s; position:relative; }
+  .btn-act:active { transform:scale(.9); }
+  .btn-act.blue { background:linear-gradient(135deg,#4a90e2,#2c5aa0); }
+  .btn-act.green { background:linear-gradient(135deg,#6ab04c,#4a7c2f); }
+  .btn-act.purple { background:linear-gradient(135deg,#a55eea,#6c3fa0); }
+  .btn-act::after { content:''; display:block; width:24px; height:24px; background-size:contain; background-repeat:no-repeat; background-position:center; }
+  
+  #btnWork::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M20 7h-4V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-10-2h4v2h-4V5z'/%3E%3C/svg%3E"); }
+  #btnVR::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M21 8H3a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h3l2 2h8l2-2h3a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2zM7 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm10 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z'/%3E%3C/svg%3E"); }
+  #btnPhone::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm0 18H7V5h10v14z'/%3E%3C/svg%3E"); }
+  #btnInteract::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E"); }
+
+  .modal { position:absolute; inset:0; background:rgba(0,0,0,.85); backdrop-filter:blur(6px); z-index:100; display:none; align-items:center; justify-content:center; padding:16px; }
+  .modal.open { display:flex; }
+  .modal-box { background:linear-gradient(180deg,#1e2a3a,#0f1620); border:2px solid #4a90e2; border-radius:20px; padding:22px; max-width:440px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.9); animation:pop .25s ease; }
+  @keyframes pop { from{transform:scale(.9);opacity:0;} to{transform:scale(1);opacity:1;} }
+  .modal-box h2 { font-size:20px; margin-bottom:14px; text-align:center; color:#ffd93d; text-shadow:0 0 12px rgba(255,217,61,.5); }
+  .modal-box p { font-size:14px; line-height:1.6; margin-bottom:12px; color:#cfd8e3; }
+  .btn-close { width:100%; margin-top:14px; padding:14px; background:linear-gradient(135deg,#ff6b6b,#c0392b); border:none; border-radius:14px; color:#fff; font-size:15px; font-weight:bold; cursor:pointer; }
+  
+  .vr-universe { margin-bottom:10px; padding:14px; border-radius:14px; border:2px solid rgba(255,255,255,.2); cursor:pointer; background:linear-gradient(135deg,#2a3a4a,#1a2530); transition:transform .15s,border-color .15s; }
+  .vr-universe:active { transform:scale(.97); }
+  .vr-universe:hover { border-color:#ffd93d; }
+  .vr-universe h3 { font-size:16px; margin-bottom:4px; }
+  .vr-universe span { font-size:12px; color:#9fb3c8; }
+  
+  .phone-app { display:flex; align-items:center; gap:12px; padding:12px; border-radius:14px; margin-bottom:8px; background:rgba(74,144,226,.15); border:1px solid rgba(74,144,226,.4); cursor:pointer; }
+  .phone-app:active { background:rgba(74,144,226,.35); }
+  .phone-app .info h4 { font-size:14px; }
+  .phone-app .info span { font-size:11px; color:#9fb3c8; }
+  
+  #toast { position:absolute; top:20px; left:50%; transform:translateX(-50%) translateY(-20px); background:rgba(0,0,0,.9); border:1px solid #ffd93d; padding:10px 16px; border-radius:30px; font-size:13px; color:#ffd93d; z-index:200; opacity:0; pointer-events:none; transition:opacity .3s,transform .3s; white-space:nowrap; }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  
+  #btnBack { position:absolute; top:20px; left:20px; z-index:50; padding:8px 14px; background:linear-gradient(135deg,#ff6b6b,#c0392b); border:2px solid #fff; border-radius:20px; color:#fff; font-size:12px; font-weight:bold; cursor:pointer; display:none; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+  #btnBack.show { display:block; }
+  
+  #btnInteract { position:absolute; bottom:80px; right:20px; width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,#f39c12,#e67e22); border:2px solid #fff; color:#fff; display:none; align-items:center; justify-content:center; box-shadow:0 4px 16px rgba(0,0,0,.5); z-index:30; cursor:pointer; }
+  #btnInteract.show { display:flex; }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="hud">
+    <div id="stats-left">
+      <div class="stat">💰 <b id="money">500</b> ₽</div>
+      <div class="stat">⭐ Ур. <b id="level">1</b></div>
+      <div class="stat">❤️ <b id="hp">100</b> HP</div>
+    </div>
+    <div id="stats-right">
+      <div class="stat">🎂 <b id="age">7</b> лет</div>
+      <div class="stat">⚡ <b id="energy">100</b>%</div>
+    </div>
+  </div>
+  <div id="joystick"><div id="stick"></div></div>
+  <div id="actions">
+    <button class="btn-act green" id="btnWork"></button>
+    <button class="btn-act purple" id="btnVR"></button>
+    <button class="btn-act blue" id="btnPhone"></button>
+  </div>
+  <button id="btnInteract"></button>
+  <button id="btnBack">← В город</button>
+  <div id="toast"></div>
+</div>
+<div class="modal" id="modalVR"><div class="modal-box"><h2>VR-Салон</h2><p>Выбери вселенную:</p><div class="vr-universe" data-vr="circus"><h3>Цирк</h3><span>Мир по сериалу</span></div><div class="vr-universe" data-vr="minecraft"><h3>Майнкрафт</h3><span>Песочница</span></div><div class="vr-universe" data-vr="roblox"><h3>Роблокс</h3><span>Хаб с играми</span></div><button class="btn-close" onclick="closeModal('modalVR')">Выйти</button></div></div>
+<div class="modal" id="modalPhone"><div class="modal-box"><h2>Телефон</h2><div class="phone-app" onclick="toast('Нет вызовов')"><div class="info"><h4>Звонки</h4></div></div><div class="phone-app" onclick="toast('3 сообщения')"><div class="info"><h4>Сообщения</h4></div></div><button class="btn-close" onclick="closeModal('modalPhone')">Закрыть</button></div></div>
+<div class="modal" id="modalWork"><div class="modal-box"><h2>Работа</h2><div class="phone-app" onclick="doJob(50,'Курьер')"><div class="info"><h4>Курьер</h4><span>+50 ₽</span></div></div><div class="phone-app" onclick="doJob(120,'Продавец')"><div class="info"><h4>Продавец</h4><span>+120 ₽</span></div></div><button class="btn-close" onclick="closeModal('modalWork')">Закрыть</button></div></div>
+<div class="modal" id="modalRoblox"><div class="modal-box"><h2>Игры Roblox</h2><div class="phone-app" onclick="startRobloxGame('disaster')"><div class="info"><h4>Natural Disaster</h4></div></div><div class="phone-app" onclick="startRobloxGame('adopt')"><div class="info"><h4>Adopt Me</h4></div></div><button class="btn-close" onclick="closeModal('modalRoblox')">Назад</button></div></div>
+<div class="modal" id="modalMinigame"><div class="modal-box" id="minigameContent"></div></div>
+<div class="modal" id="modalFight"><div class="modal-box" id="fightContent"></div></div>
+<div class="modal" id="modalRomance"><div class="modal-box" id="romanceContent"></div></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
