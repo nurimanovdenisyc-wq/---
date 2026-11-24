@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Симулятор Жизни 3D</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; font-family:'Segoe UI',sans-serif; background:#000; color:#fff; user-select:none; touch-action:none; }
+  #game { position:relative; width:100vw; height:100vh; overflow:hidden; }
+  canvas { display:block; }
+  @media (orientation: portrait) { #game::before { content:'Поверни телефон горизонтально!'; position:absolute; inset:0; background:rgba(0,0,0,0.95); color:#ffd93d; display:flex; align-items:center; justify-content:center; z-index:999; font-size:24px; text-align:center; padding:20px; font-weight:bold; } }
+  #hud { position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; gap:8px; z-index:20; pointer-events:none; }
+  .stat { background:rgba(0,0,0,.65); backdrop-filter:blur(8px); padding:6px 10px; border-radius:8px; font-size:12px; border:1px solid rgba(255,255,255,.2); display:flex; align-items:center; gap:6px; }
+  .stat b { color:#ffd93d; }
+  #stats-left,#stats-right { display:flex; flex-direction:column; gap:4px; }
+  #stats-right { align-items:flex-end; }
+  #joystick { position:absolute; bottom:20px; left:20px; width:110px; height:110px; border-radius:50%; background:rgba(255,255,255,.1); border:2px solid rgba(255,255,255,.3); backdrop-filter:blur(6px); z-index:20; touch-action:none; }
+  #stick { position:absolute; top:50%; left:50%; width:50px; height:50px; margin:-25px 0 0 -25px; border-radius:50%; background:rgba(255,255,255,.5); border:2px solid #fff; pointer-events:none; transition:transform .05s; }
+  #actions { position:absolute; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:20; }
+  .btn-act { background:linear-gradient(135deg,#ff6b6b,#c0392b); border:2px solid #fff; border-radius:50%; width:56px; height:56px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; transition:transform .1s; position:relative; }
+  .btn-act:active { transform:scale(.9); }
+  .btn-act.blue { background:linear-gradient(135deg,#4a90e2,#2c5aa0); }
+  .btn-act.green { background:linear-gradient(135deg,#6ab04c,#4a7c2f); }
+  .btn-act.purple { background:linear-gradient(135deg,#a55eea,#6c3fa0); }
+  .btn-act::after { content:''; display:block; width:24px; height:24px; background-size:contain; background-repeat:no-repeat; background-position:center; }
+  #btnWork::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M20 7h-4V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-10-2h4v2h-4V5z'/%3E%3C/svg%3E"); }
+  #btnVR::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M21 8H3a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h3l2 2h8l2-2h3a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2zM7 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm10 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z'/%3E%3C/svg%3E"); }
+  #btnPhone::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm0 18H7V5h10v14z'/%3E%3C/svg%3E"); }
+  #btnInteract::after { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E"); }
+  .modal { position:absolute; inset:0; background:rgba(0,0,0,.85); backdrop-filter:blur(6px); z-index:100; display:none; align-items:center; justify-content:center; padding:16px; }
+  .modal.open { display:flex; }
+  .modal-box { background:linear-gradient(180deg,#1e2a3a,#0f1620); border:2px solid #4a90e2; border-radius:20px; padding:22px; max-width:440px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.9); animation:pop .25s ease; }
+  @keyframes pop { from{transform:scale(.9);opacity:0;} to{transform:scale(1);opacity:1;} }
+  .modal-box h2 { font-size:20px; margin-bottom:14px; text-align:center; color:#ffd93d; text-shadow:0 0 12px rgba(255,217,61,.5); }
+  .modal-box p { font-size:14px; line-height:1.6; margin-bottom:12px; color:#cfd8e3; }
+  .btn-close { width:100%; margin-top:14px; padding:14px; background:linear-gradient(135deg,#ff6b6b,#c0392b); border:none; border-radius:14px; color:#fff; font-size:15px; font-weight:bold; cursor:pointer; }
+  .vr-universe { margin-bottom:10px; padding:14px; border-radius:14px; border:2px solid rgba(255,255,255,.2); cursor:pointer; background:linear-gradient(135deg,#2a3a4a,#1a2530); transition:transform .15s,border-color .15s; }
+  .vr-universe:active { transform:scale(.97); }
+  .vr-universe:hover { border-color:#ffd93d; }
+  .vr-universe h3 { font-size:16px; margin-bottom:4px; }
+  .vr-universe span { font-size:12px; color:#9fb3c8; }
+  .phone-app { display:flex; align-items:center; gap:12px; padding:12px; border-radius:14px; margin-bottom:8px; background:rgba(74,144,226,.15); border:1px solid rgba(74,144,226,.4); cursor:pointer; }
+  .phone-app:active { background:rgba(74,144,226,.35); }
+  .phone-app .info h4 { font-size:14px; }
+  .phone-app .info span { font-size:11px; color:#9fb3c8; }
+  #toast { position:absolute; top:20px; left:50%; transform:translateX(-50%) translateY(-20px); background:rgba(0,0,0,.9); border:1px solid #ffd93d; padding:10px 16px; border-radius:30px; font-size:13px; color:#ffd93d; z-index:200; opacity:0; pointer-events:none; transition:opacity .3s,transform .3s; white-space:nowrap; }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  #btnBack { position:absolute; top:20px; left:20px; z-index:50; padding:8px 14px; background:linear-gradient(135deg,#ff6b6b,#c0392b); border:2px solid #fff; border-radius:20px; color:#fff; font-size:12px; font-weight:bold; cursor:pointer; display:none; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+  #btnBack.show { display:block; }
+  #btnInteract { position:absolute; bottom:80px; right:20px; width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,#f39c12,#e67e22); border:2px solid #fff; color:#fff; display:none; align-items:center; justify-content:center; box-shadow:0 4px 16px rgba(0,0,0,.5); z-index:30; cursor:pointer; }
+  #btnInteract.show { display:flex; }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="hud">
+    <div id="stats-left">
+      <div class="stat">💰 <b id="money">500</b> ₽</div>
+      <div class="stat">⭐ Ур. <b id="level">1</b></div>
+      <div class="stat">❤️ <b id="hp">100</b> HP</div>
+    </div>
+    <div id="stats-right">
+      <div class="stat">🎂 <b id="age">7</b> лет</div>
+      <div class="stat">⚡ <b id="energy">100</b>%</div>
+    </div>
+  </div>
+  <div id="joystick"><div id="stick"></div></div>
+  <div id="actions">
+    <button class="btn-act green" id="btnWork"></button>
+    <button class="btn-act purple" id="btnVR"></button>
+    <button class="btn-act blue" id="btnPhone"></button>
+  </div>
+  <button id="btnInteract"></button>
+  <button id="btnBack">← В город</button>
+  <div id="toast"></div>
+</div>
+<div class="modal" id="modalVR"><div class="modal-box"><h2>VR-Салон</h2><p>Выбери вселенную:</p><div class="vr-universe" data-vr="circus"><h3>Цирк</h3><span>Мир по сериалу</span></div><div class="vr-universe" data-vr="minecraft"><h3>Майнкрафт</h3><span>Песочница</span></div><div class="vr-universe" data-vr="roblox"><h3>Роблокс</h3><span>Хаб с играми</span></div><button class="btn-close" onclick="closeModal('modalVR')">Выйти</button></div></div>
+<div class="modal" id="modalPhone"><div class="modal-box"><h2>Телефон</h2><div class="phone-app" onclick="toast('Нет вызовов')"><div class="info"><h4>Звонки</h4></div></div><div class="phone-app" onclick="toast('3 сообщения')"><div class="info"><h4>Сообщения</h4></div></div><button class="btn-close" onclick="closeModal('modalPhone')">Закрыть</button></div></div>
+<div class="modal" id="modalWork"><div class="modal-box"><h2>Работа</h2><div class="phone-app" onclick="doJob(50,'Курьер')"><div class="info"><h4>Курьер</h4><span>+50 ₽</span></div></div><div class="phone-app" onclick="doJob(120,'Продавец')"><div class="info"><h4>Продавец</h4><span>+120 ₽</span></div></div><button class="btn-close" onclick="closeModal('modalWork')">Закрыть</button></div></div>
+<div class="modal" id="modalRoblox"><div class="modal-box"><h2>Игры Roblox</h2><div class="phone-app" onclick="startRobloxGame('disaster')"><div class="info"><h4>Natural Disaster</h4></div></div><div class="phone-app" onclick="startRobloxGame('adopt')"><div class="info"><h4>Adopt Me</h4></div></div><button class="btn-close" onclick="closeModal('modalRoblox')">Назад</button></div></div>
+<div class="modal" id="modalMinigame"><div class="modal-box" id="minigameContent"></div></div>
+<div class="modal" id="modalFight"><div class="modal-box" id="fightContent"></div></div>
+<div class="modal" id="modalRomance"><div class="modal-box" id="romanceContent"></div></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+  import * as THREE from 'three';
+
+const state = { money: 500, level: 1, age: 7, energy: 100, hp: 100, maxHp: 100, pos: new THREE.Vector3(0,0,5), inWorld: 'city' };
+const friendships = {};
+let currentTarget = null;
+
+let audioCtx = null;
+function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playSound(type) {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+    if (type === 'step') { osc.frequency.setValueAtTime(100, t); osc.frequency.exponentialRampToValueAtTime(50, t+0.1); gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.1); osc.start(); osc.stop(t+0.1); }
+    if (type === 'hit') { osc.type='sawtooth'; osc.frequency.setValueAtTime(200, t); osc.frequency.exponentialRampToValueAtTime(50, t+0.2); gain.gain.setValueAtTime(0.2, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.2); osc.start(); osc.stop(t+0.2); }
+    if (type === 'kiss') { osc.type='sine'; osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(1200, t+0.1); gain.gain.setValueAtTime(0.15, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.15); osc.start(); osc.stop(t+0.15); }
+    if (type === 'click') { osc.type='square'; osc.frequency.setValueAtTime(400, t); gain.gain.setValueAtTime(0.05, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.05); osc.start(); osc.stop(t+0.05); }
+    if (type === 'vr') { osc.type='sine'; osc.frequency.setValueAtTime(200, t); osc.frequency.exponentialRampToValueAtTime(1000, t+0.5); gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.5); osc.start(); osc.stop(t+0.5); }
+  } catch(e) {}
+}
+
+function updateHUD() {
+  document.getElementById('money').textContent = state.money;
+  document.getElementById('level').textContent = state.level;
+  document.getElementById('age').textContent = state.age;
+  document.getElementById('energy').textContent = state.energy;
+  document.getElementById('hp').textContent = state.hp;
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2000);
+}
+window.toast = toast;
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+window.closeModal = closeModal;
+function openModal(id) { initAudio(); playSound('click'); document.getElementById(id).classList.add('open'); }
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87a8c4);
+scene.fog = new THREE.Fog(0x87a8c4, 30, 100);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.getElementById('game').appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
+const sun = new THREE.DirectionalLight(0xfff2d6, 1.5);
+sun.position.set(30, 60, 20); sun.castShadow = true;
+scene.add(sun);
+
+function createHuman(options = {}) {
+  const { skinColor=0xe8b796, shirtColor=0x4a90e2, pantsColor=0x2c3e50, hairColor=0x3b2219 } = options;
+  const group = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.8 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.8 });
+  const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.6 });
+  const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+  const eyeDarkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1 });
+  const mouthMat = new THREE.MeshStandardMaterial({ color: 0x8b3a3a, roughness: 0.4 });
+
+  const headGroup = new THREE.Group(); headGroup.position.y = 1.75;
+  const headGeo = new THREE.SphereGeometry(0.18, 16, 16); headGeo.scale(1, 1.15, 0.95);
+  headGroup.add(new THREE.Mesh(headGeo, skinMat));
+  headGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.12, 8), skinMat)).position.y = -0.22;
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 16, 0, Math.PI*2, 0, Math.PI/2), hairMat); hair.position.y = 0.02; headGroup.add(hair);
+  
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), eyeWhiteMat); eyeL.position.set(-0.06, 0.02, 0.16); headGroup.add(eyeL);
+  const eyeR = eyeL.clone(); eyeR.position.x = 0.06; headGroup.add(eyeR);
+  const pupL = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), eyeDarkMat); pupL.position.set(-0.06, 0.02, 0.18); headGroup.add(pupL);
+  const pupR = pupL.clone(); pupR.position.x = 0.06; headGroup.add(pupR);
+  
+  const eyelidL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.01), skinMat); eyelidL.position.set(-0.06, 0.045, 0.17); headGroup.add(eyelidL);
+  const eyelidR = eyelidL.clone(); eyelidR.position.x = 0.06; headGroup.add(eyelidR);
+
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.05, 8), skinMat); nose.rotation.x = -Math.PI/2; nose.position.set(0, -0.02, 0.17); headGroup.add(nose);
+  const mouthGroup = new THREE.Group(); mouthGroup.position.set(0, -0.08, 0.16);
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), mouthMat); mouth.scale.set(1, 0.4, 0.3); mouthGroup.add(mouth);
+  headGroup.add(mouthGroup);
+  group.add(headGroup);
+
+  const chest = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.35, 4, 12), shirtMat); chest.position.y = 1.15; chest.castShadow = true; group.add(chest);
+  const hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.20, 0.15, 4, 12), pantsMat); hips.position.y = 0.82; group.add(hips);
+
+  function createArm(side) {
+    const g = new THREE.Group(); const s = side === 'L' ? -1 : 1;
+    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), shirtMat); g.add(shoulder);
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.25, 4, 8), shirtMat); upper.position.y = -0.15; g.add(upper);
+    const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.25, 4, 8), skinMat); forearm.position.y = -0.45; g.add(forearm);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), skinMat); hand.position.y = -0.63; g.add(hand);
+    g.position.set(s * 0.28, 1.3, 0); return g;
+  }
+  const armL = createArm('L'), armR = createArm('R'); group.add(armL, armR);
+
+  function createLeg(side) {
+    const g = new THREE.Group(); const s = side === 'L' ? -1 : 1;
+    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.35, 4, 8), pantsMat); thigh.position.y = -0.2; g.add(thigh);
+    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.35, 4, 8), pantsMat); shin.position.y = -0.62; g.add(shin);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.25), new THREE.MeshStandardMaterial({ color: 0x111111 })); foot.position.set(0, -0.86, 0.05); g.add(foot);
+    g.position.set(s * 0.11, 0.75, 0); return g;
+  }
+  const legL = createLeg('L'), legR = createLeg('R'); group.add(legL, legR);
+  
+  group.userData = { armL, armR, legL, legR, mouthGroup, eyelidL, eyelidR, blinkTimer: Math.random() * 3 };
+  return group;
+}
+
+function animateHuman(human, walkSpeed, dt) {
+  const { armL, armR, legL, legR, eyelidL, eyelidR } = human.userData;
+  if (!armL) return;
+  if (walkSpeed > 0.1) {
+    if (!human.userData._phase) human.userData._phase = 0;
+    human.userData._phase += dt * 8;
+    const swing = Math.sin(human.userData._phase) * 0.6;
+    armL.rotation.x = swing; armR.rotation.x = -swing;
+    legL.rotation.x = -swing; legR.rotation.x = swing;
+  } else {
+    armL.rotation.x *= 0.9; armR.rotation.x *= 0.9; legL.rotation.x *= 0.9; legR.rotation.x *= 0.9;
+  }
+  human.userData.blinkTimer -= dt;
+  if (human.userData.blinkTimer <= 0) {
+    eyelidL.position.y = 0.015; eyelidR.position.y = 0.015;
+    if (human.userData.blinkTimer < -0.15) { eyelidL.position.y = 0.045; eyelidR.position.y = 0.045; human.userData.blinkTimer = 2 + Math.random() * 4; }
+  }
+}
+
+function animateMimic(npc) {
+  if (!npc.userData.mouthGroup) return;
+  const t = performance.now() / 100;
+  npc.userData.mouthGroup.scale.y = 1 + Math.sin(t) * 0.5;
+  npc.userData.blinkTimer = 0;
+}
+
+const cityGroup = new THREE.Group(); scene.add(cityGroup);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({ color: 0x5a8f3e }));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; cityGroup.add(ground);
+const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
+const road1 = new THREE.Mesh(new THREE.PlaneGeometry(300, 10), roadMat); road1.rotation.x = -Math.PI/2; road1.position.y = 0.02; cityGroup.add(road1);
+const road2 = new THREE.Mesh(new THREE.PlaneGeometry(10, 300), roadMat); road2.rotation.x = -Math.PI/2; road2.position.y = 0.02; cityGroup.add(road2);
+for (let i = 0; i < 15; i++) {
+  const x = (Math.random() - 0.5) * 160; const z = (Math.random() - 0.5) * 160;
+  if (Math.abs(x) < 10 || Math.abs(z) < 10) continue;
+  const h = 8 + Math.random() * 15;
+  const b = new THREE.Mesh(new THREE.BoxGeometry(6, h, 6), new THREE.MeshStandardMaterial({ color: 0xc9b89c }));
+  b.position.set(x, h/2, z); b.castShadow = true; cityGroup.add(b);
+}
+const vrBase = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 7, 32), new THREE.MeshStandardMaterial({ color: 0x1a1a3a, metalness: 0.9, roughness: 0.2 }));
+vrBase.position.set(0, 3.5, -25); cityGroup.add(vrBase);
+const vrSign = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffd93d, emissive: 0xffd93d, emissiveIntensity: 2 }));
+vrSign.position.set(0, 11, -25); cityGroup.add(vrSign);
+const vrPos = new THREE.Vector3(0, 0, -25);
+
+const npcList = [];
+const npcPositions = [[5,5],[-5,3],[10,-5],[-10,-3],[15,8],[-15,5]];
+npcPositions.forEach((p, i) => {
+  const npc = createHuman({ shirtColor: 0xe74c3c, pantsColor: 0x2c3e50 });
+  npc.position.set(p[0], 0, p[1]); npc.userData.name = "Гражданин " + (i+1);
+  npc.userData.money = 50 + Math.floor(Math.random() * 150);
+  npc.userData.hp = 100; npc.userData.maxHp = 100;
+  cityGroup.add(npc); npcList.push(npc);
+});
+
+const circusGroup = new THREE.Group(); circusGroup.visible = false; scene.add(circusGroup);
+const cf = new THREE.Mesh(new THREE.CircleGeometry(30, 32), new THREE.MeshStandardMaterial({ color: 0x3a1a5e })); cf.rotation.x = -Math.PI/2; circusGroup.add(cf);
+const circusChars = [];
+const charsData = [
+  { name:'Помни', shirt:0xff69b4, hair:0xff69b4, pos:[10,0,0] },
+  { name:'Джингл', shirt:0x00bfff, hair:0x00bfff, pos:[-10,0,0] }
+];
+charsData.forEach(c => {
+  const npc = createHuman({ shirtColor: c.shirt, hairColor: c.hair });
+  npc.position.set(c.pos[0], 0, c.pos[2]); npc.userData.name = c.name;
+  circusGroup.add(npc); circusChars.push(npc);
+});
+
+const mcGroup = new THREE.Group(); mcGroup.visible = false; scene.add(mcGroup);
+const mcBlocks = {};
+function addBlock(x, y, z, color) {
+  const key = `${x},${y},${z}`; if (mcBlocks[key]) return;
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({ color }));
+  mesh.position.set(x, y, z); mesh.userData = { x, y, z }; mcGroup.add(mesh); mcBlocks[key] = mesh;
+}
+for (let x = -10; x <= 10; x++) for (let z = -10; z <= 10; z++) { addBlock(x, -1, z, 0x6ab04c); addBlock(x, -2, z, 0x8b5a2b); }
+
+const robloxGroup = new THREE.Group(); robloxGroup.visible = false; scene.add(robloxGroup);
+const rf = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshStandardMaterial({ color: 0x1a1a2a })); rf.rotation.x = -Math.PI/2; robloxGroup.add(rf);
+const rbNPCs = [];
+const games = [
+  { id:'disaster', c:0x3498db, p:[-10,0,-5], name: 'Выживший' }, { id:'adopt', c:0xe91e63, p:[-3,0,-5], name: 'Заводчик' }
+];
+games.forEach(g => {
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(2,2,0.4,16), new THREE.MeshStandardMaterial({ color: g.c }));
+  pad.position.set(g.p[0], 0.2, g.p[2]); pad.userData.gameId = g.id; robloxGroup.add(pad);
+  const npc = createHuman({ shirtColor: g.c, pantsColor: 0x333333 });
+  npc.position.set(g.p[0]+2, 0, g.p[2]); npc.userData.name = g.name;
+  robloxGroup.add(npc); rbNPCs.push(npc);
+});
+
+const player = createHuman({ shirtColor: 0x4a90e2 }); scene.add(player);
+
+const keys = {};
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+const joyEl = document.getElementById('joystick'), stickEl = document.getElementById('stick');
+let joyActive = false, joyVec = { x:0, y:0 };
+joyEl.addEventListener('pointerdown', () => { joyActive = true; initAudio(); });
+joyEl.addEventListener('pointermove', (e) => {
+  if (!joyActive) return; e.preventDefault();
+  const rect = joyEl.getBoundingClientRect();
+  let dx = (e.touches ? e.touches[0].clientX : e.clientX) - (rect.left + rect.width/2);
+  let dy = (e.touches ? e.touches[0].clientY : e.clientY) - (rect.top + rect.height/2);
+  const max = 45, len = Math.hypot(dx, dy); if (len > max) { dx = dx/len*max; dy = dy/len*max; }
+  stickEl.style.transform = `translate(${dx}px, ${dy}px)`; joyVec.x = dx / max; joyVec.y = dy / max;
+});
+joyEl.addEventListener('pointerup', () => { joyActive = false; stickEl.style.transform = 'translate(0,0)'; joyVec = { x:0, y:0 }; });
+joyEl.addEventListener('pointercancel', () => { joyActive = false; stickEl.style.transform = 'translate(0,0)'; joyVec = { x:0, y:0 }; });
+
+window.goToWorld = (world) => {
+  playSound('vr');
+  cityGroup.visible = false; circusGroup.visible = false; mcGroup.visible = false; robloxGroup.visible = false;
+  if (player.parent) player.parent.remove(player);
+  state.pos.set(0, 0, 8); state.inWorld = world;
+  if (world === 'city') { cityGroup.visible = true; cityGroup.add(player); scene.background.set(0x87a8c4); document.getElementById('btnBack').classList.remove('show'); }
+  else if (world === 'circus') { circusGroup.visible = true; circusGroup.add(player); scene.background.set(0x1a0a2e); document.getElementById('btnBack').classList.add('show'); }
+  else if (world === 'minecraft') { mcGroup.visible = true; mcGroup.add(player); scene.background.set(0x87ceeb); state.pos.set(0, 0, 0); document.getElementById('btnBack').classList.add('show'); }
+  else if (world === 'roblox') { robloxGroup.visible = true; robloxGroup.add(player); scene.background.set(0x1a1a2a); document.getElementById('btnBack').classList.add('show'); }
+};
+document.getElementById('btnBack').onclick = () => { if (state.inWorld !== 'city') window.goToWorld('city'); };
+
+document.getElementById('btnInteract').onclick = () => {
+  if (!currentTarget) return;
+  if (state.inWorld === 'city') startFight(currentTarget);
+  else if (state.inWorld === 'circus' || state.inWorld === 'roblox') openRomance(currentTarget);
+};
+
+function startFight(npc) {
+  npc.userData.hp = 100; state.hp = 100; updateHUD(); showFightUI(npc);
+}
+function showFightUI(npc) {
+  let html = `<h2>Драка с ${npc.userData.name}</h2>
+  <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+    <span style="color:#4a90e2;">Ты: ${state.hp} HP</span>
+    <span style="color:#e74c3c;">${npc.userData.name}: ${npc.userData.hp} HP</span>
+  </div>`;
+  if (state.hp <= 0) {
+    html += `<p style="color:#e74c3c; text-align:center;">Ты проиграл! Потерял 100 ₽.</p><button class="btn-close" onclick="endFight()">Встать</button>`;
+  } else if (npc.userData.hp <= 0) {
+    const loot = npc.userData.money;
+    html += `<p style="color:#2ecc71; text-align:center;">Ты победил! Забрал ${loot} ₽.</p><button class="btn-close" onclick="winFight(${loot})">Забрать</button>`;
+  } else {
+    html += `<div style="display:flex; gap:10px;">
+        <button class="btn-act" style="flex:1; border-radius:10px; height:50px; width:auto;" onclick="fightAction('hit')">Ударить</button>
+        <button class="btn-act" style="flex:1; border-radius:10px; height:50px; width:auto;" onclick="fightAction('block')">Блок</button>
+      </div>`;
+  }
+  document.getElementById('fightContent').innerHTML = html; openModal('modalFight');
+}
+window.fightAction = (action) => {
+  if (action === 'hit') {
+    playSound('hit');
+    const dmg = 10 + Math.floor(Math.random() * 15);
+    currentTarget.userData.hp -= dmg;
+    toast(`Ты нанёс ${dmg} урона!`);
+    player.userData.armR.rotation.x = -1.5;
+    setTimeout(() => { player.userData.armR.rotation.x = 0; }, 200);
+    if (currentTarget.userData.hp > 0) {
+      const enemyDmg = 5 + Math.floor(Math.random() * 15);
+      state.hp -= enemyDmg;
+      toast(`${currentTarget.userData.name} нанёс ${enemyDmg} урона!`);
+    }
+  } else if (action === 'block') {
+    toast('Ты заблокировал удар!');
+    if (Math.random() > 0.5) { const enemyDmg = 2 + Math.floor(Math.random() * 5); state.hp -= enemyDmg; toast(`Пробили блок! -${enemyDmg} HP`); }
+  }
+  updateHUD(); showFightUI(currentTarget);
+};
+window.winFight = (loot) => { state.money += loot; updateHUD(); closeModal('modalFight'); toast(`💰 Ты забрал ${loot} ₽`); };
+window.endFight = () => { state.money = Math.max(0, state.money - 100); updateHUD(); closeModal('modalFight'); toast('🏥 Тебя подлатали. -100 ₽'); };
+
+function openRomance(npc) {
+  const name = npc.userData.name;
+  if (!friendships[name]) friendships[name] = 0;
+  const pts = friendships[name];
+  let html = `<h2>${name}</h2>
+  <p>Отношения: <b>${pts} / 100</b></p>
+  <div style="background:#333; border-radius:10px; height:12px; margin-bottom:15px; overflow:hidden;">
+    <div style="background:linear-gradient(90deg,#ff69b4,#ff1493); width:${pts}%; height:100%; transition:width .3s;"></div>
+  </div>`;
+  if (pts >= 100) {
+    html += `<p style="text-align:center;color:#ff69b4;">Вы вместе! ${name} любит тебя!</p>`;
+  } else {
+    html += `
+      <div class="phone-app" onclick="romanceAction('compliment')"><div class="info"><h4>Сделать комплимент</h4><span>+10 к отношениям</span></div></div>
+      <div class="phone-app" onclick="romanceAction('date')"><div class="info"><h4>Пригласить на свидание</h4><span>+25 к отношениям (-50 ₽)</span></div></div>
+      <div class="phone-app" onclick="romanceAction('kiss')"><div class="info"><h4>Поцеловать</h4><span>+40 к отношениям (нужно 50+)</span></div></div>
+    `;
+  }
+  html += `<button class="btn-close" onclick="closeModal('modalRomance')">Закрыть</button>`;
+  document.getElementById('romanceContent').innerHTML = html; openModal('modalRomance');
+}
+
+window.romanceAction = (action) => {
+  if (!currentTarget) return;
+  const name = currentTarget.userData.name;
+  let pts = friendships[name] || 0;
+  if (action === 'compliment') {
+    pts += 10; playSound('click'); toast(`${name} улыбается!`); animateMimic(currentTarget);
+  } else if (action === 'date') {
+    if (state.money >= 50) { state.money -= 50; pts += 25; playSound('kiss'); toast(`Свидание с ${name}!`); animateMimic(currentTarget); }
+    else { toast('Недостаточно денег'); return; }
+  } else if (action === 'kiss') {
+    if (pts >= 50) { pts += 40; playSound('kiss'); toast(`Ты поцеловал ${name}!`); animateMimic(currentTarget); }
+    else { toast('Слишком рано! Нужно 50+ отношений'); return; }
+  }
+  friendships[name] = Math.min(pts, 100);
+  updateHUD(); openRomance(currentTarget);
+};
+
+const clock = new THREE.Clock();
+let stepTimer = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  let mx = 0, mz = 0;
+  if (keys['w']||keys['arrowup']) mz -= 1; if (keys['s']||keys['arrowdown']) mz += 1;
+  if (keys['a']||keys['arrowleft']) mx -= 1; if (keys['d']||keys['arrowright']) mx += 1;
+  mx += joyVec.x; mz += joyVec.y;
+  const len = Math.hypot(mx, mz); let walkSpeed = 0;
+  if (len > 0.1) {
+    mx /= len; mz /= len; state.pos.x += mx * 5 * dt; state.pos.z += mz * 5 * dt;
+    player.rotation.y = Math.atan2(mx, mz); walkSpeed = 1;
+    stepTimer -= dt;
+    if (stepTimer <= 0) { playSound('step'); stepTimer = 0.4; }
+  }
+  if (state.inWorld === 'city') { state.pos.x = Math.max(-120, Math.min(120, state.pos.x)); state.pos.z = Math.max(-120, Math.min(120, state.pos.z)); }
+  player.position.x = state.pos.x; player.position.z = state.pos.z;
+  animateHuman(player, walkSpeed, dt);
+
+  currentTarget = null;
+  const allNPCs = state.inWorld === 'city' ? npcList : (state.inWorld === 'circus' ? circusChars : (state.inWorld === 'roblox' ? rbNPCs : []));
+  let minD = 999;
+  allNPCs.forEach(n => {
+    const d = Math.hypot(state.pos.x - n.position.x, state.pos.z - n.position.z);
+    if (d < 3 && d < minD) { minD = d; currentTarget = n; }
+    animateHuman(n, 0, dt);
+  });
+  
+  const distToVR = Math.hypot(state.pos.x - vrPos.x, state.pos.z - vrPos.z);
+  const btnVR = document.getElementById('btnVR');
+  if (state.inWorld === 'city' && distToVR < 10) btnVR.style.display = 'flex'; else btnVR.style.display = 'none';
+
+  const btnInteract = document.getElementById('btnInteract');
+  if (currentTarget && !document.getElementById('modalFight').classList.contains('open') && !document.getElementById('modalRomance').classList.contains('open')) {
+    btnInteract.classList.add('show');
+    btnInteract.style.background = state.inWorld === 'city' ? 'linear-gradient(135deg,#f39c12,#e67e22)' : 'linear-gradient(135deg,#a55eea,#6c3fa0)';
+  } else {
+    btnInteract.classList.remove('show');
+  }
+
+  const camTarget = new THREE.Vector3(state.pos.x, 1.6, state.pos.z);
+  camera.position.lerp(camTarget.clone().add(new THREE.Vector3(0, 3, 6)), 0.1);
+  camera.lookAt(camTarget);
+  vrSign.position.y = 11 + Math.sin(performance.now()/500) * 0.5; vrSign.rotation.y += dt;
+  
+  renderer.render(scene, camera);
+}
+
+document.getElementById('btnWork').onclick = () => openModal('modalWork');
+document.getElementById('btnPhone').onclick = () => openModal('modalPhone');
+document.getElementById('btnVR').onclick = () => { if (state.inWorld === 'city') openModal('modalVR'); };
+document.querySelectorAll('[data-vr]').forEach(el => {
+  el.onclick = () => {
+    closeModal('modalVR');
+    const u = el.dataset.vr;
+    if (u === 'circus') window.goToWorld('circus');
+    else if (u === 'minecraft') window.goToWorld('minecraft');
+    else if (u === 'roblox') { window.goToWorld('roblox'); setTimeout(() => openModal('modalRoblox'), 400); }
+  };
+});
+window.doJob = (pay, name) => {
+  if (state.energy < 10) return toast('Мало энергии!');
+  state.money += pay; state.level = Math.floor(state.money/500) + 1;
+  state.energy = Math.max(0, state.energy - Math.ceil(pay/10)); updateHUD();
+  playSound('click'); toast(`${name}: +${pay} ₽`); closeModal('modalWork');
+};
+const robloxGames = {
+  disaster: { title:'Disaster', desc:'Выживи!', q:'Что делать?', answers:['Прятаться','Бежать','Стоять'], correct:0, reward:80 },
+  adopt: { title:'Adopt Me', desc:'Покорми!', q:'Чем?', answers:['Шоколад','Корм','Чипсы'], correct:1, reward:60 }
+};
+window.startRobloxGame = (gameId) => {
+  closeModal('modalRoblox'); const g = robloxGames[gameId];
+  document.getElementById('minigameContent').innerHTML = `<h2>${g.title}</h2><p>${g.desc}</p><p><b>${g.q}</b></p>` +
+    g.answers.map((a,i)=>`<div class="phone-app" onclick="answerRoblox(${i}, ${g.correct}, ${g.reward})"><div class="info"><h4>${a}</h4></div></div>`).join('') +
+    `<button class="btn-close" onclick="closeModal('modalMinigame')">Закрыть</button>`;
+  openModal('modalMinigame');
+};
+window.answerRoblox = (idx, correct, reward) => {
+  if (idx === correct) { state.money += reward; updateHUD(); playSound('kiss'); toast(`Верно! +${reward} ₽`); }
+  else { toast('Неверно'); }
+  closeModal('modalMinigame');
+};
+
+updateHUD(); window.goToWorld('city'); animate();
+toast('Добро пожаловать!');
+window.addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+</script>
+</body>
+</html>
